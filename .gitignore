@@ -1,0 +1,12 @@
+# 个人设备配置备份含设备序列号,不入公库
+backups/
+
+# 厂商原始资料(版权 PDF/二进制 + 个人配置),本地保存不入公库
+archive/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
