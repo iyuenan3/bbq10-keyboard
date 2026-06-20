@@ -48,8 +48,10 @@ curl -ks --resolve localhost.lotlab.org:5001:127.0.0.1 https://localhost.lotlab.
 | POST | `/api/device/{id}/keymap` | 写 keymap(body=JSON 字符串的 base64;立即生效) |
 | GET | `/api/device/{id}/macro` | 读宏(base64 二进制) |
 | POST | `/api/device/{id}/macro` | 写宏 |
+| GET | `/api/device/{id}/fn` | 读 fn 表(base64,256B,复杂键 16 位码表) |
+| POST | `/api/device/{id}/fn` | 写 fn 表(写复杂键须与 keymap 两段同步) |
 
-注:`PUT` 返回 405,写入用 `POST`。settings(休眠时间等)无 REST 读端点。`{id}` = 设备序列号字符串。
+注:`PUT` 返回 405,写入用 `POST`。settings(休眠时间等)无 REST 读端点。`{id}` = 设备序列号字符串。直连 `http://127.0.0.1:5000` 即可(纯 http,无需证书/lotlab 域名/resolve;前端也走这条同源相对路径)。
 
 > bredhat 在 JSON/接口里把 USB 真实 VID `0x6666` 存成十进制 `6666`(数字位当十六进制位),展示时按字面位还原成 `0x6666`。
 
@@ -70,15 +72,35 @@ base64 解码后 **4096 字节**:
 
 - **行列 = 扫描矩阵序**,非视觉布局。本机 layer0 解码:`Q E R U O / W S G H L / Caps D T Y I / A P [复杂] Enter Bksp / [复杂] X V B [复杂] / Space Z C N M / LGUI LShift F J K`。
 
+### 4.1 fn 表(复杂键)与 funcTable
+
+- **复杂键**(修饰+键、层切换、宏、Consumer/System、BT/RGB)= 字节 `0xC0-0xDF`(32 个可寻址槽),槽号 = 字节 `- 0xC0`,指向 **fn 表**里的一个 16 位 LE 码。
+- **fn 表 = 256 字节**(128 槽,首 32 可寻址,空槽 `0xFFFF`)。它**同时**:① 内嵌在 keymap blob 尾部 `keymap[3840:4096]`(`4096-256=3840`);② 经独立端点 `/api/device/{id}/fn` 暴露。两者内容一致。写复杂键须 keymap 与 fn 两段同步,否则索引悬空。
+- fn 表构建 = **去重 + 首现顺序**:按扫描序遍历所有键,凡 16 位码 >0xFF 的复杂键 `indexOf` 命中则复用槽,否则追加(满 32 报错),keymap 该格写 `0xC0+槽号`。确定性映射。
+- **funcTable**(本机 `3334=0xD06`)= 固件能力位掩码,非映射表版本号:`0x2`=MouseKey、`0x400`=Macro、`0x200`=Actionmap(合并 vs 拆分存储)。`0xD06` → MouseKey on / Macro on / **Actionmap off**(故走 keymap+fn 两段拆分存储;若某固件 Actionmap on 则走单段合并 `/actionmap`,编码偏移不同,需先判此位)。
+
 ## 5. 工具 JSON 导出格式(与设备二进制不同的另一套编码)
 
 官方「保存/导出」得到的 `.json`(`{"Data":{"Keys":[8][7][5], "Macros":[...], "Settings":[...]}, "VID":6666, "PID":8888}`)用 **16 位码**,与设备 1 字节码经 `funcTable` 互转:
 
 - 普通键:同 HID usage。
 - **修饰+键**:`0xMMKK`,高字节 MM=HID 修饰位掩码(`0x02`=LShift…),低字节 KK=HID 键码。例:`#`=`0x0220`(LShift+`3`)、`(`=`0x0226`(LShift+`9`)。已对官方说明 PDF 符号层逐键验证。
-- 层操作:`0xA?xx`;宏:`0xC0xx`;蓝牙槽/内置:`0xF0xx`/`0xF2xx`(语义部分推测)。
+16 位码按**高 nibble** 分类(已在 `tools/bbq10codec.py` 实现完整 decode,并对实机做过**字节级 round-trip 验证**):
 
-> 即:设备端用「索引表」省空间,JSON 端用「自描述 16 位码」。`bbq10ctl` 的 backup/restore 直接搬运设备二进制,与编码无关、绝对可靠;setkey 目前只直写普通键/修饰键/穿透(复杂键需重建索引表,见路线图)。
+| 高nibble | 类别 | 解码 |
+|---|---|---|
+| `0x0`/`0x1` | 修饰+键(`0x1`=右修饰标记) | `mod=(c>>8)&0xf`(LCtrl1/LShift2/LAlt4/LGUI8),`key=c&0xff` |
+| `0x2`/`0x3` | tap-mod / 变体 | 位域已知,实机行为待补验 |
+| `0x4` | System/Consumer | `sub=(c>>10)&3`:0=System,1=Consumer;`x=c&0x3ff` |
+| `0x5` | MouseKey | `c&0x7ff` |
+| `0x8` | LayerModify(AND/OR/SET/TOGGLE) | 位域已知,实机行为待补验 |
+| `0xA`/`0xB` | 层操作 | `layer=((c>>8)&0x1f)+1`;`lo`:F0=MO,F1=TG,F2=TO,F3=Default,C0-DF=LayerTapMod,其它=LayerTapKey |
+| `0xC` | 宏 | `c&0xff`=宏号 |
+| `0xF` | 特殊(BT 槽/内置) | `0xF000/0xF001/0xF200` 等,语义部分推测 |
+
+另有单字节别名:设备字节 `0xA5-0xA7`=System(`0x81+n`),`0xA8-0xBE`=Consumer(查 `CONSUMER_LUT`,23 项媒体键 usage)。
+
+> `bbq10ctl` 的 backup/restore 直接搬运设备二进制,与编码无关、绝对可靠。复杂键的完整编解码(含去重建表)已在 `bbq10codec.py` 复现并验证,可脱离厂商工具读写符号/层/宏。
 
 ## 6. 宏格式
 

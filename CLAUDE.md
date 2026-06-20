@@ -20,15 +20,19 @@
 
 ## 当前状态(2026-06-20)
 
-- 设备彻底逆向完成;CLI `bbq10ctl` 可用并实测;`backups/` 有当前配置备份(**gitignore,不入公库**)。
-- 文档已从 ZMK 误判全面纠正为 bredhat/CLI 现实。
-- 尚未:补全复杂键的 JSON↔二进制编解码(setkey 暂只支持普通键);未写英文 README;未建 GitHub 公库;未开背盖确认主控。
+- 设备彻底逆向完成,已推 GitHub 公库 `github.com/iyuenan3/bbq10-keyboard`(无序列号)。
+- **完整 codec** `tools/bbq10codec.py`:设备(keymap 4096B + fn 256B)↔16位码双向,**字节级 round-trip + parse/decode 全网格验证通过**。
+- **`bbq10ctl` 全功能**:list/info/dump/backup/restore/getkey/setkey(**含复杂键**:符号/层/宏/媒体键,自动管 fn 表)/serve。实测复杂键写入闭环。
+- **图形编辑器** `tools/editor.html` + `serve`:可视化点键改键,后端 API 端到端实测通过。
+- 文档已全面纠正为 bredhat/CLI 现实;backups/ gitignore 不入公库。
 
 ## 下一步(待办)
 
-1. 开源打包:README(中英)、`docs/reverse-engineering.md`、LICENSE,推到 GitHub 公库。
-2. CLI 增强:复杂键索引表编解码(支持直写符号/层切换/宏)、出厂 `_原始.json`(工具JSON格式)→设备二进制的转换以支持 CLI 一键回厂。
-3. (可选 v0.2)开背盖确认主控;若 nRF52840 + 有 bootloader,评估刷 ZMK 换取完全开放固件。
+1. 高级动作助记符(tap-mod/layer-modify/BT槽/RGB):位域已知,用官方 UI(127.0.0.1:5000)当真值机逐类对验实机行为(当前可用原始码 0xXXXX 设置)。
+2. 出厂 `archive/keymaps/factory_原始.json`(工具 JSON 16位码格式)→设备二进制转换,支持 CLI 一键回厂。
+3. v0.2:逆向键盘原始 USB HID 报文,CLI/编辑器直连键盘,去掉对 .NET server 的依赖。
+4. (可选)开背盖确认主控;若 nRF52840 + bootloader,评估刷 ZMK。
+5. 把新增工具(codec/editor/serve)commit + push。
 
 ## 红线
 

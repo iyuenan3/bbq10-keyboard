@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BBQ10 改键编辑器</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --fg:#e6e9ef; --mut:#8b93a3;
+          --acc:#4c8bf5; --cplx:#b07cff; --ok:#3fb950; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 -apple-system,"PingFang SC",Segoe UI,sans-serif; }
+  header { padding:12px 18px; border-bottom:1px solid var(--line); display:flex;
+           align-items:center; gap:16px; flex-wrap:wrap; }
+  h1 { font-size:16px; margin:0; font-weight:600; }
+  .mut { color:var(--mut); }
+  .wrap { display:flex; gap:18px; padding:18px; align-items:flex-start; flex-wrap:wrap; }
+  .layers { display:flex; gap:6px; margin:10px 18px 0; flex-wrap:wrap; }
+  .tab { padding:5px 12px; border:1px solid var(--line); border-radius:7px; cursor:pointer;
+         background:var(--panel); color:var(--mut); }
+  .tab.on { color:var(--fg); border-color:var(--acc); background:#1d2533; }
+  .grid { display:grid; grid-template-columns:repeat(5,96px); gap:8px; }
+  .key { height:62px; border:1px solid var(--line); border-radius:9px; background:var(--panel);
+         cursor:pointer; display:flex; flex-direction:column; align-items:center;
+         justify-content:center; padding:4px; text-align:center; transition:.08s; }
+  .key:hover { border-color:var(--acc); }
+  .key.sel { border-color:var(--acc); box-shadow:0 0 0 2px rgba(76,139,245,.35); }
+  .key .lbl { font-weight:600; font-size:13px; word-break:break-all; }
+  .key.cplx .lbl { color:var(--cplx); }
+  .key.trans .lbl, .key.none .lbl { color:var(--mut); font-weight:400; }
+  .key .base { font-size:10px; color:var(--mut); margin-top:3px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:11px;
+           padding:16px; width:320px; }
+  .panel h3 { margin:0 0 10px; font-size:14px; }
+  label.row { display:block; margin:9px 0 3px; color:var(--mut); font-size:12px; }
+  select,input,button { background:#0f1320; color:var(--fg); border:1px solid var(--line);
+           border-radius:7px; padding:7px 9px; font-size:13px; width:100%; }
+  button { cursor:pointer; width:auto; }
+  .btn-acc { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .mods { display:flex; gap:6px; flex-wrap:wrap; }
+  .mods label { display:flex; align-items:center; gap:4px; color:var(--fg); font-size:13px; }
+  .mods input { width:auto; }
+  .actions { display:flex; gap:8px; margin-left:auto; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+           background:#1d2533; border:1px solid var(--line); padding:9px 16px; border-radius:9px;
+           opacity:0; transition:.2s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .toast.err { border-color:#f85149; color:#ffb4ae; }
+  .hide { display:none; }
+  code { background:#0f1320; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BBQ10 改键编辑器</h1>
+  <span class="mut" id="dev">连接中…</span>
+  <span class="mut" id="fninfo"></span>
+  <div class="actions">
+    <button onclick="backup()">备份</button>
+    <button onclick="document.getElementById('rf').click()">还原</button>
+    <input type="file" id="rf" class="hide" accept=".json" onchange="restore(this.files[0])">
+    <button onclick="load()">刷新</button>
+  </div>
+</header>
+<div class="layers" id="tabs"></div>
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="panel" id="assign">
+    <h3 id="atitle">选一个键</h3>
+    <div id="aform" class="hide">
+      <label class="row">行为类型</label>
+      <select id="atype" onchange="renderForm()">
+        <option value="key">普通键</option>
+        <option value="modkey">修饰 + 键</option>
+        <option value="mod">修饰键</option>
+        <option value="layer">层操作</option>
+        <option value="media">媒体键</option>
+        <option value="macro">宏</option>
+        <option value="trans">穿透</option>
+        <option value="none">无</option>
+        <option value="raw">原始码(高级)</option>
+      </select>
+      <div id="afields"></div>
+      <div style="margin-top:14px; display:flex; gap:8px;">
+        <button class="btn-acc" onclick="apply()">应用到键盘</button>
+        <span class="mut" id="preview"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let DEV=null, CAT=null, GRID=null, L=0, SEL=null;
+const $=s=>document.querySelector(s), api=(p)=>fetch(p).then(r=>r.json());
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');
+  setTimeout(()=>t.className='toast',1800);}
+
+async function load(){
+  CAT = CAT || await api('/api/catalog');
+  const ds = await api('/api/devices');
+  if(!ds.length){ $('#dev').textContent='没找到键盘(server 在跑吗?)'; return; }
+  DEV = ds[0].id;
+  $('#dev').textContent = `设备 ${DEV}  fw ${ds[0].firmwareVer}`;
+  GRID = await api('/api/grid?id='+encodeURIComponent(DEV));
+  $('#fninfo').textContent = `复杂键 ${GRID.fnUsed}/${GRID.fnCap}`;
+  renderTabs(); renderGrid();
+}
+function renderTabs(){
+  $('#tabs').innerHTML='';
+  for(let l=0;l<GRID.nlayers;l++){
+    const used = GRID.layers[l].flat().some(c=>c.code>1);
+    if(!used && l>0) continue;
+    const t=document.createElement('div'); t.className='tab'+(l===L?' on':'');
+    t.textContent='层 '+l; t.onclick=()=>{L=l;SEL=null;renderTabs();renderGrid();$('#aform').classList.add('hide');$('#atitle').textContent='选一个键';};
+    $('#tabs').appendChild(t);
+  }
+}
+function renderGrid(){
+  const g=$('#grid'); g.innerHTML='';
+  for(let r=0;r<GRID.nrows;r++)for(let c=0;c<GRID.ncols;c++){
+    const cell=GRID.layers[L][r][c];
+    const k=document.createElement('div');
+    let cls='key'; if(cell.cplx)cls+=' cplx'; if(cell.label==='TRANS')cls+=' trans'; if(cell.label==='NONE')cls+=' none';
+    if(SEL&&SEL.r===r&&SEL.c===c)cls+=' sel';
+    k.className=cls;
+    k.innerHTML=`<div class="lbl">${esc(cell.label)}</div><div class="base">${esc(GRID.base[r][c])}</div>`;
+    k.onclick=()=>{SEL={r,c};renderGrid();openAssign(r,c,cell);};
+    g.appendChild(k);
+  }
+}
+function esc(s){return (s+'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+
+function openAssign(r,c,cell){
+  $('#aform').classList.remove('hide');
+  $('#atitle').innerHTML=`层${L} 行${r} 列${c} · 基础键 <code>${esc(GRID.base[r][c])}</code> · 当前 <code>${esc(cell.label)}</code>`;
+  renderForm();
+}
+function opt(v){return `<option value="${v}">${v}</option>`;}
+function renderForm(){
+  const t=$('#atype').value, f=$('#afields'); let h='';
+  if(t==='key') h=`<label class="row">键</label><select id="f_key">${CAT.keys.map(opt).join('')}</select>`;
+  else if(t==='modkey') h=`<label class="row">修饰</label><div class="mods">${CAT.mods.map(m=>`<label><input type="checkbox" value="${m}">${m}</label>`).join('')}</div>
+        <label class="row">键</label><select id="f_key">${CAT.keys.filter(k=>k!=='TRANS'&&k!=='NONE').map(opt).join('')}</select>`;
+  else if(t==='mod') h=`<label class="row">修饰键</label><select id="f_key">${['LSHIFT','LCTRL','LALT','LGUI','RSHIFT','RCTRL','RALT','RGUI'].map(opt).join('')}</select>`;
+  else if(t==='layer') h=`<label class="row">操作</label><select id="f_op">${CAT.layerOps.map(opt).join('')}</select>
+        <label class="row">目标层</label><select id="f_layer">${[...Array(CAT.nlayers).keys()].map(opt).join('')}</select>`;
+  else if(t==='media') h=`<label class="row">媒体键</label><select id="f_key">${CAT.media.map(opt).join('')}</select>`;
+  else if(t==='macro') h=`<label class="row">宏号</label><input id="f_key" type="number" value="0" min="0" max="31">`;
+  else if(t==='raw') h=`<label class="row">原始 16 位码(如 0xA2F1)</label><input id="f_key" value="0x">`;
+  else h=`<span class="mut">${t==='trans'?'按下时查更低层':'按下无反应'}</span>`;
+  f.innerHTML=h; updatePreview();
+  f.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',updatePreview));
+}
+function mnemonic(){
+  const t=$('#atype').value;
+  if(t==='trans')return 'TRANS'; if(t==='none')return 'NONE';
+  if(t==='layer')return `${$('#f_op').value}(${$('#f_layer').value})`;
+  if(t==='macro')return 'MACRO'+($('#f_key').value||0);
+  if(t==='modkey'){const mods=[...$('#afields').querySelectorAll('input:checked')].map(e=>e.value);
+    return [...mods, $('#f_key').value].join('+');}
+  return $('#f_key').value;
+}
+function updatePreview(){ $('#preview').textContent = '= '+mnemonic(); }
+async function apply(){
+  const key=mnemonic();
+  const r=await fetch('/api/setkey',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:DEV,L,R:SEL.r,C:SEL.c,key})}).then(r=>r.json());
+  if(r.error){toast(r.error,true);return;}
+  if(!r.ok){toast('写入校验失败',true);return;}
+  toast(`已设为 ${r.label}`);
+  GRID=await api('/api/grid?id='+encodeURIComponent(DEV));
+  $('#fninfo').textContent=`复杂键 ${GRID.fnUsed}/${GRID.fnCap}`;
+  renderGrid();
+}
+async function backup(){
+  const o=await api('/api/backup?id='+encodeURIComponent(DEV));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:'application/json'}));
+  a.download=`bbq10-${DEV}-${Date.now()}.json`; a.click(); toast('备份已下载');
+}
+async function restore(file){
+  if(!file)return; const data=JSON.parse(await file.text());
+  const r=await fetch('/api/restore',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:DEV,data})}).then(r=>r.json());
+  if(r.error){toast(r.error,true);return;}
+  toast('已还原'); load();
+}
+load();
+</script>
+</body>
+</html>

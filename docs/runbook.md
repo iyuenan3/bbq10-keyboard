@@ -37,20 +37,28 @@ python3 tools/bbq10ctl.py list
 
 ---
 
-## Step 3 — 改键 / 备份 / 还原(`bbq10ctl`)
+## Step 3 — 改键 / 备份 / 还原
 
+### 图形界面(推荐)
 ```bash
-python3 tools/bbq10ctl.py dump                    # 看当前 keymap(可读)
-python3 tools/bbq10ctl.py backup my.json          # 备份 keymap+macro
+python3 tools/bbq10ctl.py serve          # 默认端口 8770
+# 浏览器开 http://127.0.0.1:8770:点键选行为应用,顶部备份/还原
+```
+
+### 命令行
+```bash
+python3 tools/bbq10ctl.py dump                    # 看当前 keymap(复杂键已解码)
+python3 tools/bbq10ctl.py backup my.json          # 备份 keymap+fn+macro
 python3 tools/bbq10ctl.py getkey 0 3 1            # 读 层0行3列1
-python3 tools/bbq10ctl.py setkey 0 3 1 F9         # 改成 F9(自动先备份到 backups/)
+python3 tools/bbq10ctl.py setkey 0 3 1 F9         # 普通键(自动先备份到 backups/)
+python3 tools/bbq10ctl.py setkey 1 0 0 LShift+3   # 符号/复杂键(自动入 fn 表)
+python3 tools/bbq10ctl.py setkey 0 4 0 MO(2)      # 层操作;媒体键 VOLUP;原始码 0xA2F1
 python3 tools/bbq10ctl.py restore my.json         # 还原
 ```
 
 - 坐标:`L 层(0-7) R 行(0-6) C 列(0-4)`,偏移 `(L*7+R)*5+C`,扫描矩阵序。
-- KEY 可用键名(`A` `9` `F9` `ENTER` `LSHIFT` `TRANS`)或数字 HID 码。
-- `setkey` 仅直写普通键/修饰键/穿透;复杂键(符号/层切换/宏)会被拒绝(路线图补全)。
-- 出厂原始配置(工具 JSON 格式)= `archive/keymaps/factory_原始.json`,可用官方工具「打开→保存并应用」回厂(CLI 回厂待编解码补全)。`archive/` 含厂商原始资料(工具 .dmg/.exe、官方 PDF、出厂/改版 keymap),gitignore 不入公库。
+- 复杂键(符号/层/宏/媒体键)全支持,自动管理 fn 索引表(上限 32 种);高级动作用原始码兜底。
+- 出厂原始配置(工具 JSON 格式)= `archive/keymaps/factory_原始.json`,可用官方工具「打开→保存并应用」回厂。`archive/` 含厂商原始资料(工具 .dmg/.exe、官方 PDF、出厂/改版 keymap),gitignore 不入公库。
 
 ---
 
