@@ -40,6 +40,11 @@ CONSUMER_LUT = [0xe2, 0xe9, 0xea, 0xb5, 0xb6, 0xb3, 0xb4, 0xb7, 0xcd, 0xcc,
 CONSUMER_NAME = {0xe2: "MUTE", 0xe9: "VOLUP", 0xea: "VOLDN", 0xb5: "NEXT",
                  0xb6: "PREV", 0xb3: "FFWD", 0xb4: "RWND", 0xb7: "STOP",
                  0xcd: "PLAYPAUSE", 0xcc: "STOPEJECT"}
+# InternalFunc(高位 0xF):code = 0xF000 | ((opt&0xF)<<8) | (id&0xFF)。名表/语义出自官方工具
+# app.js 的 FunctionList(逆向已验,见 docs/reverse-engineering.md §5.1)。id=功能族(0 键盘控制,
+# 1 输出/设备切换),opt=族内变体。0xF001 在蓝牙板上 = 在 USB 与当前蓝牙主机间切换输出。
+INTFN = {0xF000: "SLEEP", 0xF100: "NKRO", 0xF200: "BATT", 0xF001: "USB",
+         0xF801: "BT1", 0xF901: "BT2", 0xFA01: "BT3", 0xFB01: "BTBC", 0xF701: "BTUNBIND"}
 
 
 def mods_label(mod):
@@ -73,7 +78,9 @@ def decode_code(code):
             return {0xF0: "MO", 0xF1: "TG", 0xF2: "TO", 0xF3: "DF"}[lo] + f"({layer})"
     if cls == 0xC and lo <= 0x1F:                          # 宏
         return f"MACRO({lo})"
-    # 其余(tap-mod/layermod/mouse/system/LayerTap/特殊BT 等,位域已知行为待验)→ 原始码,仍可 parse
+    if cls == 0xF and code in INTFN:                       # InternalFunc(睡眠/USB/电量/蓝牙槽…已验证)
+        return INTFN[code]
+    # 其余(tap-mod/layermod/mouse/system/LayerTap/0xF 未命名功能 等,位域已知行为待验)→ 原始码,仍可 parse
     return f"0x{code:04X}"
 
 
@@ -81,12 +88,13 @@ def decode_code(code):
 NAME2HID = {v.upper(): k for k, v in HID.items()}         # A-Z 0-9 F1-F12 符号键 ENTER TRANS NONE...
 MODKEY2 = {v.upper(): k for k, v in MODKEY.items()}       # LCTRL.. -> 224..
 CONSUMER2 = {v: k for k, v in CONSUMER_NAME.items()}      # 名 -> usage
+INTFN2 = {v: k for k, v in INTFN.items()}                 # SLEEP/USB/BT1.. -> 16位码
 _MODIN = {"LCTRL": 0x01, "CTRL": 0x01, "LSHIFT": 0x02, "SHIFT": 0x02,
           "LALT": 0x04, "ALT": 0x04, "LGUI": 0x08, "GUI": 0x08, "CMD": 0x08, "WIN": 0x08}
 
 
 def parse(s):
-    """'A'/'LShift+3'/'MO(2)'/'TG(3)'/'MACRO0'/'VOLUP'/'0xA2F1' -> 16位码。"""
+    """'A'/'LShift+3'/'MO(2)'/'MACRO0'/'VOLUP'/'SLEEP'/'USB'/'BT1'/'0xA2F1' -> 16位码。"""
     s = s.strip()
     u = s.upper()
     if u.startswith("0X"):
@@ -101,6 +109,8 @@ def parse(s):
         return 0xC000 | (int(m.group(1)) & 0xFF)
     if u in CONSUMER2:
         return 0x4400 | CONSUMER2[u]
+    if u in INTFN2:                                         # SLEEP/USB/NKRO/BATT/BT1-3/BTBC/BTUNBIND
+        return INTFN2[u]
     if "+" in s:                                            # 修饰+键
         parts = [p.strip().upper() for p in s.split("+") if p.strip()]
         *mods, key = parts
@@ -116,7 +126,7 @@ def parse(s):
         return NAME2HID[u]
     if s in NAME2HID:                                       # 原样符号(大小写敏感的 ' ` 等)
         return NAME2HID[s]
-    raise ValueError(f"无法解析: {s}(用键名/LShift+3/MO(2)/MACRO0/VOLUP/0x原始码)")
+    raise ValueError(f"无法解析: {s}(用键名/LShift+3/MO(2)/MACRO0/VOLUP/SLEEP/USB/BT1/0x原始码)")
 
 
 # ---- 设备字节 <-> 每格 16 位码 ----

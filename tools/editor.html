@@ -5,56 +5,88 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BBQ10 改键编辑器</title>
 <style>
-  :root { --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --fg:#e6e9ef; --mut:#8b93a3;
-          --acc:#4c8bf5; --cplx:#b07cff; --ok:#3fb950; --warn:#d29922; }
+  :root { --bg:#0e1014; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a; --fg:#e6e9ef;
+          --mut:#7e8696; --acc:#4c8bf5; --cplx:#b07cff; --ok:#3fb950; --warn:#d29922; --danger:#f85149; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg);
-         font:14px/1.5 -apple-system,"PingFang SC",Segoe UI,sans-serif; }
-  header { padding:12px 18px; border-bottom:1px solid var(--line); display:flex;
-           align-items:center; gap:16px; flex-wrap:wrap; }
-  h1 { font-size:16px; margin:0; font-weight:600; }
+         font:14px/1.5 -apple-system,"PingFang SC","Segoe UI",sans-serif; }
+  header { padding:11px 18px; border-bottom:1px solid var(--line); display:flex;
+           align-items:center; gap:14px; flex-wrap:wrap; }
+  h1 { font-size:15px; margin:0; font-weight:600; letter-spacing:.3px; }
   .mut { color:var(--mut); }
-  .wrap { display:flex; gap:18px; padding:18px; align-items:flex-start; flex-wrap:wrap; }
-  .layers { display:flex; gap:6px; margin:10px 18px 0; flex-wrap:wrap; }
-  .tab { padding:5px 12px; border:1px solid var(--line); border-radius:7px; cursor:pointer;
-         background:var(--panel); color:var(--mut); }
-  .tab.on { color:var(--fg); border-color:var(--acc); background:#1d2533; }
-  .grid { display:grid; grid-template-columns:repeat(5,96px); gap:8px; }
-  .key { height:62px; border:1px solid var(--line); border-radius:9px; background:var(--panel);
-         cursor:pointer; display:flex; flex-direction:column; align-items:center;
-         justify-content:center; padding:4px; text-align:center; transition:.08s; }
-  .key:hover { border-color:var(--acc); }
-  .key.sel { border-color:var(--acc); box-shadow:0 0 0 2px rgba(76,139,245,.35); }
-  .key .lbl { font-weight:600; font-size:13px; word-break:break-all; }
-  .key.cplx .lbl { color:var(--cplx); }
-  .key.trans .lbl, .key.none .lbl { color:var(--mut); font-weight:400; }
-  .key .base { font-size:10px; color:var(--mut); margin-top:3px; }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:11px;
-           padding:16px; width:320px; }
-  .panel h3 { margin:0 0 10px; font-size:14px; }
-  label.row { display:block; margin:9px 0 3px; color:var(--mut); font-size:12px; }
-  select,input,button { background:#0f1320; color:var(--fg); border:1px solid var(--line);
-           border-radius:7px; padding:7px 9px; font-size:13px; width:100%; }
-  button { cursor:pointer; width:auto; }
-  .btn-acc { background:var(--acc); border-color:var(--acc); color:#fff; }
-  .mods { display:flex; gap:6px; flex-wrap:wrap; }
-  .mods label { display:flex; align-items:center; gap:4px; color:var(--fg); font-size:13px; }
-  .mods input { width:auto; }
+  .pill { font-size:12px; color:var(--mut); background:var(--panel); border:1px solid var(--line);
+          padding:2px 9px; border-radius:20px; }
   .actions { display:flex; gap:8px; margin-left:auto; }
-  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
-           background:#1d2533; border:1px solid var(--line); padding:9px 16px; border-radius:9px;
-           opacity:0; transition:.2s; pointer-events:none; }
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+           border-radius:7px; padding:6px 11px; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  .btn-acc { background:var(--acc); border-color:var(--acc); color:#fff; }
+
+  /* layer tabs */
+  .layers { display:flex; gap:6px; padding:12px 18px 0; flex-wrap:wrap; }
+  .tab { padding:5px 13px; border:1px solid var(--line); border-radius:8px; cursor:pointer;
+         background:var(--panel); color:var(--mut); font-size:13px; }
+  .tab.on { color:#fff; border-color:var(--acc); background:#1d2a40; }
+  .tab .dot { color:var(--cplx); }
+
+  /* physical keyboard */
+  .kbwrap { display:flex; justify-content:center; padding:20px 18px 6px; }
+  .kb { background:#0a0c10; border:1px solid var(--line); border-radius:16px; padding:16px 16px 18px;
+        box-shadow:inset 0 1px 0 #ffffff10, 0 10px 30px #0008; }
+  .krow { display:flex; gap:7px; justify-content:center; margin-bottom:7px; }
+  .krow:last-child { margin-bottom:0; }
+  .pkey { position:relative; width:58px; height:54px; border:1px solid var(--line); border-radius:9px;
+          background:linear-gradient(#20242e,#171a21); cursor:pointer; display:flex; flex-direction:column;
+          align-items:center; justify-content:center; padding:3px; transition:.07s; user-select:none;
+          box-shadow:0 1px 0 #ffffff10, 0 2px 4px #0006; }
+  .pkey:hover { border-color:var(--acc); transform:translateY(-1px); }
+  .pkey.sel { border-color:var(--acc); box-shadow:0 0 0 2px rgba(76,139,245,.45); }
+  .pkey .main { font-weight:600; font-size:14px; line-height:1.15; word-break:break-all; text-align:center; }
+  .pkey.cplx .main { color:var(--cplx); }
+  .pkey.trans .main, .pkey.none .main { color:var(--mut); font-weight:400; }
+  .pkey .sub { position:absolute; top:3px; left:6px; font-size:10px; color:var(--mut); }
+  .pkey.wide { flex:1 1 auto; max-width:340px; }
+
+  /* selection + palette */
+  .selbar { text-align:center; padding:8px 18px 2px; font-size:13px; color:var(--mut); min-height:30px; }
+  .selbar code { background:var(--panel2); padding:1px 6px; border-radius:5px; color:var(--fg); }
+  .palette { max-width:980px; margin:6px auto 30px; padding:0 18px; }
+  .cats { display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:10px; }
+  .cat { padding:5px 12px; border:1px solid var(--line); border-radius:8px; cursor:pointer;
+         background:var(--panel); color:var(--mut); font-size:13px; }
+  .cat.on { color:#fff; border-color:var(--cplx); background:#241d33; }
+  .chips { display:flex; gap:7px; flex-wrap:wrap; padding:14px 0 4px; min-height:54px; }
+  .chip { min-width:42px; height:38px; padding:0 12px; border:1px solid var(--line); border-radius:8px;
+          background:var(--panel2); color:var(--fg); cursor:pointer; display:inline-flex; align-items:center;
+          justify-content:center; font-size:14px; }
+  .chip:hover { border-color:var(--acc); background:#1d2a40; }
+  .chip.sub { color:var(--mut); font-size:12px; }
+  .subhead { width:100%; color:var(--mut); font-size:12px; margin:4px 0 -2px; }
+
+  /* advanced strip */
+  .adv { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:16px;
+         padding:12px 14px; background:var(--panel); border:1px solid var(--line); border-radius:11px; }
+  .adv .grp { display:flex; gap:6px; align-items:center; }
+  .mtog { padding:5px 11px; border:1px solid var(--line); border-radius:7px; cursor:pointer;
+          background:var(--panel2); color:var(--mut); font-size:13px; }
+  .mtog.on { color:#fff; border-color:var(--acc); background:#1d2a40; }
+  .adv input { background:#0f1320; color:var(--fg); border:1px solid var(--line); border-radius:7px;
+               padding:6px 9px; font-size:13px; width:120px; }
+  .adv .sep { width:1px; height:26px; background:var(--line); }
+
+  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+           background:#1d2533; border:1px solid var(--line); padding:9px 18px; border-radius:10px;
+           opacity:0; transition:.2s; pointer-events:none; font-size:13px; z-index:9; }
   .toast.show { opacity:1; }
-  .toast.err { border-color:#f85149; color:#ffb4ae; }
+  .toast.err { border-color:var(--danger); color:#ffb4ae; }
   .hide { display:none; }
-  code { background:#0f1320; padding:1px 5px; border-radius:4px; }
 </style>
 </head>
 <body>
 <header>
   <h1>BBQ10 改键编辑器</h1>
-  <span class="mut" id="dev">连接中…</span>
-  <span class="mut" id="fninfo"></span>
+  <span class="pill" id="dev">连接中…</span>
+  <span class="pill" id="fninfo"></span>
   <div class="actions">
     <button onclick="backup()">备份</button>
     <button onclick="document.getElementById('rf').click()">还原</button>
@@ -62,121 +94,167 @@
     <button onclick="load()">刷新</button>
   </div>
 </header>
+
 <div class="layers" id="tabs"></div>
-<div class="wrap">
-  <div class="grid" id="grid"></div>
-  <div class="panel" id="assign">
-    <h3 id="atitle">选一个键</h3>
-    <div id="aform" class="hide">
-      <label class="row">行为类型</label>
-      <select id="atype" onchange="renderForm()">
-        <option value="key">普通键</option>
-        <option value="modkey">修饰 + 键</option>
-        <option value="mod">修饰键</option>
-        <option value="layer">层操作</option>
-        <option value="media">媒体键</option>
-        <option value="macro">宏</option>
-        <option value="trans">穿透</option>
-        <option value="none">无</option>
-        <option value="raw">原始码(高级)</option>
-      </select>
-      <div id="afields"></div>
-      <div style="margin-top:14px; display:flex; gap:8px;">
-        <button class="btn-acc" onclick="apply()">应用到键盘</button>
-        <span class="mut" id="preview"></span>
-      </div>
+<div class="kbwrap"><div class="kb" id="kb"></div></div>
+<div class="selbar" id="selbar">点一个键,再从下方选键码</div>
+
+<div class="palette">
+  <div class="cats" id="cats"></div>
+  <div class="chips" id="chips"></div>
+  <div class="adv">
+    <div class="grp" id="mtoggles"></div>
+    <span class="mut" style="font-size:12px">勾选后点字母/数字 = 组合键</span>
+    <span class="sep"></span>
+    <div class="grp">
+      <input id="raw" placeholder="原始码 0xA3F1" onkeydown="if(event.key==='Enter')applyRaw()">
+      <button onclick="applyRaw()">应用原始码</button>
     </div>
+    <span class="sep"></span>
+    <button onclick="assign('TRANS')">穿透 ▽</button>
+    <button onclick="assign('NONE')">无 ✕</button>
   </div>
 </div>
+
 <div class="toast" id="toast"></div>
 <script>
-let DEV=null, CAT=null, GRID=null, L=0, SEL=null;
-const $=s=>document.querySelector(s), api=(p)=>fetch(p).then(r=>r.json());
-function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');
-  setTimeout(()=>t.className='toast',1800);}
+const $=s=>document.querySelector(s);
+const api=p=>fetch(p).then(r=>r.json());
+let DEV=null, GRID=null, L=0, SEL=null, CAT='字母';
+const MODS={LCtrl:0,LShift:0,LAlt:0,LGUI:0};
 
-async function load(){
-  CAT = CAT || await api('/api/catalog');
-  const ds = await api('/api/devices');
-  if(!ds.length){ $('#dev').textContent='没找到键盘(server 在跑吗?)'; return; }
-  DEV = ds[0].id;
-  $('#dev').textContent = `设备 ${DEV}  fw ${ds[0].firmwareVer}`;
-  GRID = await api('/api/grid?id='+encodeURIComponent(DEV));
-  $('#fninfo').textContent = `复杂键 ${GRID.fnUsed}/${GRID.fnCap}`;
-  renderTabs(); renderGrid();
-}
-function renderTabs(){
-  $('#tabs').innerHTML='';
-  for(let l=0;l<GRID.nlayers;l++){
-    const used = GRID.layers[l].flat().some(c=>c.code>1);
-    if(!used && l>0) continue;
-    const t=document.createElement('div'); t.className='tab'+(l===L?' on':'');
-    t.textContent='层 '+l; t.onclick=()=>{L=l;SEL=null;renderTabs();renderGrid();$('#aform').classList.add('hide');$('#atitle').textContent='选一个键';};
-    $('#tabs').appendChild(t);
-  }
-}
-function renderGrid(){
-  const g=$('#grid'); g.innerHTML='';
-  for(let r=0;r<GRID.nrows;r++)for(let c=0;c<GRID.ncols;c++){
-    const cell=GRID.layers[L][r][c];
-    const k=document.createElement('div');
-    let cls='key'; if(cell.cplx)cls+=' cplx'; if(cell.label==='TRANS')cls+=' trans'; if(cell.label==='NONE')cls+=' none';
-    if(SEL&&SEL.r===r&&SEL.c===c)cls+=' sel';
-    k.className=cls;
-    k.innerHTML=`<div class="lbl">${esc(cell.label)}</div><div class="base">${esc(GRID.base[r][c])}</div>`;
-    k.onclick=()=>{SEL={r,c};renderGrid();openAssign(r,c,cell);};
-    g.appendChild(k);
-  }
-}
+// 物理布局: [键帽印字, 矩阵行R, 矩阵列C, (宽,可选)]  —— R,C 由出厂 keymap 反推
+const PHYS = [
+  [['Q',0,0],['W',1,0],['E',0,1],['R',0,2],['T',2,2],['Y',2,3],['U',0,3],['I',2,4],['O',0,4],['P',3,1]],
+  [['A',3,0],['S',1,1],['D',2,1],['F',6,2],['G',1,2],['H',1,3],['J',6,3],['K',6,4],['L',1,4],['⌫',3,4]],
+  [['alt',4,0],['Z',5,1],['X',4,1],['C',5,2],['V',4,2],['B',4,3],['N',5,3],['M',5,4],['⇧',3,2],['↵',3,3]],
+  [['sym',2,0],['🎤',6,0],['␣',5,0,'wide'],['$',4,4],['⇧',6,1]],
+];
+
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');
+  setTimeout(()=>t.className='toast',2000);}
 function esc(s){return (s+'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
 
-function openAssign(r,c,cell){
-  $('#aform').classList.remove('hide');
-  $('#atitle').innerHTML=`层${L} 行${r} 列${c} · 基础键 <code>${esc(GRID.base[r][c])}</code> · 当前 <code>${esc(cell.label)}</code>`;
-  renderForm();
+// ---- 键码面板 ----
+const SYM = [['-','-'],['=','='],['[','['],[']',']'],['\\','\\'],[';',';'],["'","'"],['`','`'],[',',','],['.','.'],['/','/'],
+  ['!','LShift+1'],['@','LShift+2'],['#','LShift+3'],['$','LShift+4'],['%','LShift+5'],['^','LShift+6'],
+  ['&','LShift+7'],['*','LShift+8'],['(','LShift+9'],[')','LShift+0'],['_','LShift+-'],['+','LShift+='],
+  ['{','LShift+['],['}','LShift+]'],['|','LShift+\\'],[':','LShift+;'],['"',"LShift+'"],['~','LShift+`'],
+  ['<','LShift+,'],['>','LShift+.'],['?','LShift+/']];
+const CATS = {
+  '字母': 'Q W E R T Y U I O P A S D F G H J K L Z X C V B N M'.split(' '),
+  '数字': '1 2 3 4 5 6 7 8 9 0'.split(' '),
+  '符号': SYM,
+  'F 键': Array.from({length:12},(_,i)=>'F'+(i+1)),
+  '控制': ['ENTER','ESC','BKSP','TAB','SPACE','CAPS','DEL','INS'],
+  '导航': ['UP','DOWN','LEFT','RIGHT','PGUP','PGDN','END'],
+  '修饰': ['LSHIFT','LCTRL','LALT','LGUI','RSHIFT','RCTRL','RALT','RGUI'],
+  '媒体': ['MUTE','VOLUP','VOLDN','PLAYPAUSE','NEXT','PREV','STOP','FFWD','RWND','STOPEJECT'],
+  '系统/蓝牙': [['睡眠','SLEEP'],['USB','USB'],['全键无冲','NKRO'],['电量','BATT'],
+    ['蓝牙1','BT1'],['蓝牙2','BT2'],['蓝牙3','BT3'],['重广播','BTBC'],['解绑','BTUNBIND']],
+  '层': '__LAYER__',
+  '宏': '__MACRO__',
+};
+
+function renderCats(){
+  const c=$('#cats'); c.innerHTML='';
+  Object.keys(CATS).forEach(k=>{
+    const e=document.createElement('div'); e.className='cat'+(k===CAT?' on':'');
+    e.textContent=k; e.onclick=()=>{CAT=k;renderCats();renderChips();}; c.appendChild(e);
+  });
 }
-function opt(v){return `<option value="${v}">${v}</option>`;}
-function renderForm(){
-  const t=$('#atype').value, f=$('#afields'); let h='';
-  if(t==='key') h=`<label class="row">键</label><select id="f_key">${CAT.keys.map(opt).join('')}</select>`;
-  else if(t==='modkey') h=`<label class="row">修饰</label><div class="mods">${CAT.mods.map(m=>`<label><input type="checkbox" value="${m}">${m}</label>`).join('')}</div>
-        <label class="row">键</label><select id="f_key">${CAT.keys.filter(k=>k!=='TRANS'&&k!=='NONE').map(opt).join('')}</select>`;
-  else if(t==='mod') h=`<label class="row">修饰键</label><select id="f_key">${['LSHIFT','LCTRL','LALT','LGUI','RSHIFT','RCTRL','RALT','RGUI'].map(opt).join('')}</select>`;
-  else if(t==='layer') h=`<label class="row">操作</label><select id="f_op">${CAT.layerOps.map(opt).join('')}</select>
-        <label class="row">目标层</label><select id="f_layer">${[...Array(CAT.nlayers).keys()].map(opt).join('')}</select>`;
-  else if(t==='media') h=`<label class="row">媒体键</label><select id="f_key">${CAT.media.map(opt).join('')}</select>`;
-  else if(t==='macro') h=`<label class="row">宏号</label><input id="f_key" type="number" value="0" min="0" max="31">`;
-  else if(t==='raw') h=`<label class="row">原始 16 位码(如 0xA2F1)</label><input id="f_key" value="0x">`;
-  else h=`<span class="mut">${t==='trans'?'按下时查更低层':'按下无反应'}</span>`;
-  f.innerHTML=h; updatePreview();
-  f.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',updatePreview));
+function chip(label,code,cls){
+  const e=document.createElement('div'); e.className='chip'+(cls?' '+cls:'');
+  e.textContent=label; e.title=code; e.onclick=()=>assign(code); return e;
 }
-function mnemonic(){
-  const t=$('#atype').value;
-  if(t==='trans')return 'TRANS'; if(t==='none')return 'NONE';
-  if(t==='layer')return `${$('#f_op').value}(${$('#f_layer').value})`;
-  if(t==='macro')return 'MACRO'+($('#f_key').value||0);
-  if(t==='modkey'){const mods=[...$('#afields').querySelectorAll('input:checked')].map(e=>e.value);
-    return [...mods, $('#f_key').value].join('+');}
-  return $('#f_key').value;
+function head(t){const e=document.createElement('div');e.className='subhead';e.textContent=t;return e;}
+function renderChips(){
+  const box=$('#chips'); box.innerHTML=''; const data=CATS[CAT];
+  if(data==='__LAYER__'){
+    [['MO','按住进层'],['TG','切换开关'],['TO','跳到该层'],['DF','设为默认层']].forEach(([op,desc])=>{
+      box.appendChild(head(op+' · '+desc));
+      for(let n=1;n<8;n++) box.appendChild(chip(op+' '+n, `${op}(${n})`));
+    });
+  } else if(data==='__MACRO__'){
+    box.appendChild(head('宏(用官方工具录制宏序列;此处指派宏号)'));
+    for(let n=0;n<16;n++) box.appendChild(chip('宏 '+n, `MACRO(${n})`));
+  } else {
+    data.forEach(d=>{ const [label,code]=Array.isArray(d)?d:[d,d];
+      box.appendChild(chip(label,code, CAT==='符号'&&Array.isArray(d)?'':'')); });
+  }
 }
-function updatePreview(){ $('#preview').textContent = '= '+mnemonic(); }
-async function apply(){
-  const key=mnemonic();
+function renderMtoggles(){
+  const g=$('#mtoggles'); g.innerHTML='';
+  Object.keys(MODS).forEach(m=>{
+    const e=document.createElement('div'); e.className='mtog'+(MODS[m]?' on':'');
+    e.textContent=m.replace('L',''); e.onclick=()=>{MODS[m]=MODS[m]?0:1;renderMtoggles();}; g.appendChild(e);
+  });
+}
+function modPrefix(){ return Object.keys(MODS).filter(m=>MODS[m]); }
+function clearMods(){ Object.keys(MODS).forEach(m=>MODS[m]=0); renderMtoggles(); }
+function combinable(code){ return !/[+()]/.test(code) && !code.startsWith('0x')
+  && code!=='TRANS' && code!=='NONE'; }
+
+// ---- 物理键盘 ----
+function renderTabs(){
+  const t=$('#tabs'); t.innerHTML='';
+  for(let l=0;l<GRID.nlayers;l++){
+    const cplx=GRID.layers[l].flat().some(c=>c.cplx);
+    const e=document.createElement('div'); e.className='tab'+(l===L?' on':'');
+    e.innerHTML=`层 ${l}${cplx?' <span class="dot">●</span>':''}`;
+    e.onclick=()=>{L=l;SEL=null;renderTabs();renderKb();$('#selbar').textContent='点一个键,再从下方选键码';};
+    t.appendChild(e);
+  }
+}
+function cellAt(R,C){ return GRID.layers[L][R][C]; }
+function renderKb(){
+  const kb=$('#kb'); kb.innerHTML='';
+  PHYS.forEach(row=>{
+    const rd=document.createElement('div'); rd.className='krow';
+    row.forEach(([legend,R,C,w])=>{
+      const cell=cellAt(R,C); const lab=cell.label;
+      const k=document.createElement('div');
+      let cls='pkey'+(w?' '+w:'');
+      if(cell.cplx)cls+=' cplx'; if(lab==='TRANS')cls+=' trans'; if(lab==='NONE')cls+=' none';
+      if(SEL&&SEL.R===R&&SEL.C===C)cls+=' sel';
+      k.className=cls;
+      const main = lab==='TRANS'?'▽' : lab==='NONE'?'·' : lab;
+      const sub = (legend!==main && legend!==lab) ? `<span class="sub">${esc(legend)}</span>` : '';
+      k.innerHTML=`${sub}<span class="main">${esc(main)}</span>`;
+      k.onclick=()=>{SEL={R,C,legend};renderKb();showSel();};
+      rd.appendChild(k);
+    });
+    kb.appendChild(rd);
+  });
+}
+function showSel(){
+  if(!SEL){return;}
+  const cell=cellAt(SEL.R,SEL.C);
+  $('#selbar').innerHTML=`已选 <b>${esc(SEL.legend)}</b> 键 · 层${L} (R${SEL.R} C${SEL.C}) · `
+    +`当前 <code>${esc(cell.label)}</code> <span class="mut">(0x${cell.code.toString(16).toUpperCase().padStart(4,'0')})</span>`;
+}
+
+// ---- 写入 ----
+async function assign(code){
+  if(!SEL){toast('先点一个键',true);return;}
+  if(modPrefix().length && combinable(code)) code = [...modPrefix(),code].join('+');
   const r=await fetch('/api/setkey',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({id:DEV,L,R:SEL.r,C:SEL.c,key})}).then(r=>r.json());
+    body:JSON.stringify({id:DEV,L,R:SEL.R,C:SEL.C,key:code})}).then(r=>r.json());
   if(r.error){toast(r.error,true);return;}
   if(!r.ok){toast('写入校验失败',true);return;}
-  toast(`已设为 ${r.label}`);
+  clearMods();
+  toast(`${SEL.legend} → ${r.label}`);
   GRID=await api('/api/grid?id='+encodeURIComponent(DEV));
   $('#fninfo').textContent=`复杂键 ${GRID.fnUsed}/${GRID.fnCap}`;
-  renderGrid();
+  renderTabs(); renderKb(); showSel();
 }
+function applyRaw(){ const v=$('#raw').value.trim(); if(!/^0x[0-9a-f]+$/i.test(v)){toast('格式: 0xA3F1',true);return;} assign(v); }
+
 async function backup(){
   const o=await api('/api/backup?id='+encodeURIComponent(DEV));
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:'application/json'}));
-  a.download=`bbq10-${DEV}-${Date.now()}.json`; a.click(); toast('备份已下载');
+  a.download=`bbq10-backup-${o._ts||'now'}.json`; a.click(); toast('备份已下载');
 }
 async function restore(file){
   if(!file)return; const data=JSON.parse(await file.text());
@@ -184,6 +262,16 @@ async function restore(file){
     body:JSON.stringify({id:DEV,data})}).then(r=>r.json());
   if(r.error){toast(r.error,true);return;}
   toast('已还原'); load();
+}
+
+async function load(){
+  const ds=await api('/api/devices');
+  if(!ds.length){ $('#dev').textContent='没找到键盘(server 在跑吗?)'; return; }
+  DEV=ds[0].id;
+  $('#dev').textContent=`设备 …${(DEV+'').slice(-4)} · fw ${ds[0].firmwareVer}`;
+  GRID=await api('/api/grid?id='+encodeURIComponent(DEV));
+  $('#fninfo').textContent=`复杂键 ${GRID.fnUsed}/${GRID.fnCap}`;
+  renderTabs(); renderKb(); renderCats(); renderChips(); renderMtoggles();
 }
 load();
 </script>

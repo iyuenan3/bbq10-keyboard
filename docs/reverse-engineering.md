@@ -96,11 +96,37 @@ base64 解码后 **4096 字节**:
 | `0x8` | LayerModify(AND/OR/SET/TOGGLE) | 位域已知,实机行为待补验 |
 | `0xA`/`0xB` | 层操作 | `layer=((c>>8)&0x1f)+1`;`lo`:F0=MO,F1=TG,F2=TO,F3=Default,C0-DF=LayerTapMod,其它=LayerTapKey |
 | `0xC` | 宏 | `c&0xff`=宏号 |
-| `0xF` | 特殊(BT 槽/内置) | `0xF000/0xF001/0xF200` 等,语义部分推测 |
+| `0xF` | InternalFunc(内置功能:睡眠/USB/电量/蓝牙槽/RGB) | `id=c&0xff`,`opt=(c>>8)&0xf`;查 FunctionList,见 §5.1。已验证 |
 
 另有单字节别名:设备字节 `0xA5-0xA7`=System(`0x81+n`),`0xA8-0xBE`=Consumer(查 `CONSUMER_LUT`,23 项媒体键 usage)。
 
 > `bbq10ctl` 的 backup/restore 直接搬运设备二进制,与编码无关、绝对可靠。复杂键的完整编解码(含去重建表)已在 `bbq10codec.py` 复现并验证,可脱离厂商工具读写符号/层/宏。
+
+### 5.1 InternalFunc(高位 `0xF` 内置功能)
+
+逆向来源 = **官方工具 `app.js` 自己的编码/解码函数 + 内嵌 FunctionList 表**(它写这些码,故为 ground truth;并用 Node 实跑 round-trip 验证):
+
+- **编码**(`app.js` idx 262305):`code = 0xF000 + ((0xf & opt) << 8) + (0xff & id)`,即 `code = 0xF000 | ((opt&0xF)<<8) | (id&0xFF)`。
+- **解码**(idx ~392981):`id = code & 0xff`,`opt = (code>>8) & 0xf`,`class = (code>>12) & 0xf`;`class==0xF` 派发 `InternalFunc(id, opt)`。`ActionType` 枚举 `InternalFunc=0x15`(= TMK `ACT_FUNCTION`,kind `0b1111`)。
+- **标签** = 在 FunctionList 里按 `(id,opt)` 查;查不到回退 `功能<id>:<opt>` / `Func <id>:<opt>`。
+
+`id` = 功能族,`opt` = 族内变体。基础表 `ab3e`(4 项)+ 每键盘 `Profile.AdditionFns`(本机 28 项)拼接:
+
+| code | id,opt | 名 | 含义(官方原文) |
+|---|---|---|---|
+| `0xF000` | 0,0 | SLEEP | 使键盘进入睡眠状态 |
+| `0xF100` | 0,1 | NKRO | 启用/禁用全键无冲 |
+| `0xF200` | 0,2 | BATT | 打印当前键盘的电量 |
+| `0xF001` | 1,0 | USB | 启用/禁用 USB 设备(蓝牙板上=在 USB 与当前蓝牙主机间切换输出) |
+| `0xF801` | 1,8 | BT1 | 蓝牙通道一 |
+| `0xF901` | 1,9 | BT2 | 蓝牙通道二 |
+| `0xFA01` | 1,10 | BT3 | 蓝牙通道三 |
+| `0xFB01` | 1,11 | BTBC | 重新蓝牙广播 |
+| `0xF701` | 1,7 | BTUNBIND | 解除蓝牙绑定 |
+
+另有 `id=16`(特殊组合键)、`id=17/18`(RGB/WS2812 灯),标签随机型而异,暂留原始码。`0xF000/0xF001/0xF200` 实见于出厂第 3 层(与方向键/媒体键同层)。已在 `bbq10codec.py` 的 `INTFN` 表实现 decode/parse,`bbq10ctl` 与编辑器(「系统/蓝牙」分类)可直接按名设置。
+
+> 保留项:`0xF001` 在蓝牙下的操作细节(切回 USB vs 开关 USB)未上手按键实测,码的身份(id=1 设备切换,opt=0 USB)确定无疑。
 
 ## 6. 宏格式
 
