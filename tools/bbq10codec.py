@@ -47,6 +47,26 @@ CONSUMER_NAME = {0xe2: "MUTE", 0xe9: "VOLUP", 0xea: "VOLDN", 0xb5: "NEXT",
 INTFN = {0xF000: "SLEEP", 0xF100: "NKRO", 0xF200: "BATT", 0xF001: "USB",
          0xF801: "BT1", 0xF901: "BT2", 0xFA01: "BT3", 0xFB01: "BTBC", 0xF701: "BTUNBIND"}
 
+# 层 / tap-hold 动作码(逆向自 app.js,层号 0-based,见 docs/reverse-engineering.md §5.2)
+#  类0x8 层位运算: 0x8000|(事件<<10)|(时序<<8)|((L//4)<<5)|(1<<L%4);事件 0关 1开 2反转(TG) 3仅开(TO)
+#  类0xA 层-tap:   0xA000|(L<<8)|低; 低=0xF1 开关层(MO,按住) | 0xC0-DF 切层+修饰(LM) | 其它有效HID=切层或键(LT)
+#  类0x2 修饰-tap: 0x2000|(修饰<<8)|低; 低=0 单发(OSM) | =1 粘滞(SM) | 其它有效HID=修饰或键(MT,按住修饰/点按键)
+_L8OP = {0: "LOFF", 1: "LON", 2: "TG", 3: "TO"}
+_L8OP2 = {v: k for k, v in _L8OP.items()}
+_L8TIMING = 1                                              # 触发时序(出厂反转层实测用 1)
+_P4 = {1: 0, 2: 1, 4: 2, 8: 3}                             # bit -> 层内序(L%4)
+
+
+def _enc_layer8(op, L):
+    return 0x8000 | (op << 10) | (_L8TIMING << 8) | (((L // 4) & 7) << 5) | (1 << (L % 4))
+
+
+def _dec_layer8(code):                                     # -> (op, layer) 或 None
+    if (code >> 8) & 3 != _L8TIMING: return None
+    p4 = code & 0x1F
+    if p4 not in _P4: return None
+    return (code >> 10) & 3, ((code >> 5) & 7) * 4 + _P4[p4]
+
 
 def mods_label(mod):
     return "+".join(n for b, n in MODBIT.items() if mod & b)
@@ -73,15 +93,33 @@ def decode_code(code):
     if cls == 0x4 and ((code >> 10) & 3) == 1:            # Consumer(媒体键),命中表才友好
         u = code & 0x3FF
         if u in CONSUMER_NAME: return CONSUMER_NAME[u]
-    if cls in (0xA, 0xB):                                  # 层操作(MO/TG/TO/DF 已验证)
-        layer = ((code >> 8) & 0x1F) + 1
-        if lo in (0xF0, 0xF1, 0xF2, 0xF3):
-            return {0xF0: "MO", 0xF1: "TG", 0xF2: "TO", 0xF3: "DF"}[lo] + f"({layer})"
+    if cls == 0x8:                                        # 层位运算:关/开/反转(TG)/仅开(TO)
+        r = _dec_layer8(code)
+        if r and _enc_layer8(r[0], r[1]) == code:
+            return f"{_L8OP[r[0]]}({r[1]})"
+    if cls == 0xA:                                         # 层-tap 族(层号 0-based)
+        layer = (code >> 8) & 0x1F
+        if lo == 0xF1 and (0xA000 | (layer << 8) | 0xF1) == code:
+            return f"MO({layer})"                          # 开关层(按住)
+        if 0xC0 <= lo <= 0xDF and not (lo & 0x10):         # 切层和修饰
+            name = mods_label(lo & 0xF)
+            if name and (0xA000 | (layer << 8) | (0xC0 | (lo & 0xF))) == code:
+                return f"LM({layer},{name})"
+        if lo in HID and lo not in (0, 1) and (0xA000 | (layer << 8) | lo) == code:
+            return f"LT({layer},{HID[lo]})"                # 切层或按键
+    if cls == 0x2:                                         # 修饰-tap 族(左手规范编码)
+        mod = (code >> 8) & 0xF
+        name = mods_label(mod)
+        if name:
+            if lo == 0 and (0x2000 | (mod << 8)) == code: return f"OSM({name})"
+            if lo == 1 and (0x2000 | (mod << 8) | 1) == code: return f"SM({name})"
+            if lo in HID and lo not in (0, 1) and (0x2000 | (mod << 8) | lo) == code:
+                return f"MT({name},{HID[lo]})"             # 修饰或按键(按住修饰/点按键)
     if cls == 0xC and lo <= 0x1F:                          # 宏
         return f"MACRO({lo})"
     if cls == 0xF and code in INTFN:                       # InternalFunc(睡眠/USB/电量/蓝牙槽…已验证)
         return INTFN[code]
-    # 其余(tap-mod/layermod/mouse/system/LayerTap/0xF 未命名功能 等,位域已知行为待验)→ 原始码,仍可 parse
+    # 其余(右手变体/mouse/system/0xF 未命名功能 等)→ 原始码,仍可 parse
     return f"0x{code:04X}"
 
 
@@ -94,17 +132,44 @@ _MODIN = {"LCTRL": 0x01, "CTRL": 0x01, "LSHIFT": 0x02, "SHIFT": 0x02,
           "LALT": 0x04, "ALT": 0x04, "LGUI": 0x08, "GUI": 0x08, "CMD": 0x08, "WIN": 0x08}
 
 
+def _mods_to_bits(s):
+    bits = 0
+    for p in s.split("+"):
+        p = p.strip().upper()
+        if p not in _MODIN: raise ValueError(f"未知修饰键: {p}")
+        bits |= _MODIN[p]
+    return bits
+
+
 def parse(s):
-    """'A'/'LShift+3'/'MO(2)'/'MACRO0'/'VOLUP'/'SLEEP'/'USB'/'BT1'/'0xA2F1' -> 16位码。"""
+    """助记符/原始码 -> 16位码。例: A / LShift+3 / MO(2) / TG(2) / TO(2) / LT(2,ESC) /
+    LM(2,LShift) / MT(LCtrl,ESC) / OSM(LShift) / SM(LShift) / VOLUP / SLEEP / BT1 / 0xA2F1。"""
     s = s.strip()
     u = s.upper()
     if u.startswith("0X"):
         return int(u, 16)
-    m = re.fullmatch(r"(MO|TG|TO|DF)\((\d+)\)", u)
+    m = re.fullmatch(r"(MO|TG|TO|LON|LOFF)\((\d+)\)", u)   # 层操作(0-based)
     if m:
-        op = {"MO": 0xF0, "TG": 0xF1, "TO": 0xF2, "DF": 0xF3}[m.group(1)]
-        layer = int(m.group(2))
-        return 0xA000 | (((layer - 1) & 0x1F) << 8) | op
+        op, L = m.group(1), int(m.group(2))
+        if op == "MO":
+            return 0xA000 | ((L & 0x1F) << 8) | 0xF1       # 开关层(按住)
+        return _enc_layer8(_L8OP2[op], L)                  # TG/TO/LON/LOFF(类0x8)
+    m = re.fullmatch(r"LT\((\d+),(.+)\)", u)               # 切层或按键(按住进层/点按键)
+    if m:
+        L = int(m.group(1)); key = m.group(2).strip()
+        if key not in NAME2HID: raise ValueError(f"未知键: {key}")
+        return 0xA000 | ((L & 0x1F) << 8) | NAME2HID[key]
+    m = re.fullmatch(r"LM\((\d+),(.+)\)", u)               # 切层和修饰
+    if m:
+        return 0xA000 | ((int(m.group(1)) & 0x1F) << 8) | (0xC0 | (_mods_to_bits(m.group(2)) & 0xF))
+    m = re.fullmatch(r"MT\(([^,]+),(.+)\)", u)             # 修饰或按键(按住修饰/点按键)
+    if m:
+        key = m.group(2).strip()
+        if key not in NAME2HID: raise ValueError(f"未知键: {key}")
+        return 0x2000 | ((_mods_to_bits(m.group(1)) & 0xF) << 8) | NAME2HID[key]
+    m = re.fullmatch(r"(OSM|SM)\((.+)\)", u)               # 单发 / 粘滞修饰
+    if m:
+        return 0x2000 | ((_mods_to_bits(m.group(2)) & 0xF) << 8) | (1 if m.group(1) == "SM" else 0)
     m = re.fullmatch(r"MACRO\(?(\d+)\)?", u)
     if m:
         return 0xC000 | (int(m.group(1)) & 0xFF)

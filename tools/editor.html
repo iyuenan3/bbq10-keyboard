@@ -155,6 +155,7 @@ const CATS = {
   '系统/蓝牙': [['睡眠','SLEEP'],['USB','USB'],['全键无冲','NKRO'],['电量','BATT'],
     ['蓝牙1','BT1'],['蓝牙2','BT2'],['蓝牙3','BT3'],['重广播','BTBC'],['解绑','BTUNBIND']],
   '层': '__LAYER__',
+  'tap-hold': '__TAPHOLD__',
   '宏': '__MACRO__',
 };
 
@@ -170,13 +171,32 @@ function chip(label,code,cls){
   e.textContent=label; e.title=code; e.onclick=()=>assign(code); return e;
 }
 function head(t){const e=document.createElement('div');e.className='subhead';e.textContent=t;return e;}
+function opt(v){return `<option value="${v}">${v}</option>`;}
+function gv(id){return document.getElementById(id).value;}
 function renderChips(){
   const box=$('#chips'); box.innerHTML=''; const data=CATS[CAT];
   if(data==='__LAYER__'){
-    [['MO','按住进层'],['TG','切换开关'],['TO','跳到该层'],['DF','设为默认层']].forEach(([op,desc])=>{
+    [['MO','按住进层(松开回)'],['TG','点按锁定/再点退出'],['TO','仅开此层(其他关)']].forEach(([op,desc])=>{
       box.appendChild(head(op+' · '+desc));
-      for(let n=1;n<8;n++) box.appendChild(chip(op+' '+n, `${op}(${n})`));
+      for(let n=0;n<8;n++) box.appendChild(chip(op+' '+n, `${op}(${n})`));
     });
+  } else if(data==='__TAPHOLD__'){
+    const mods=['LCtrl','LShift','LAlt','LGUI'], lyrs=[0,1,2,3,4,5,6,7];
+    const keys=['ESC','TAB','ENTER','SPACE','BKSP','DEL'].concat(CATS['字母'],CATS['数字']);
+    const row=(html,...btns)=>{const d=document.createElement('div');
+      d.style.cssText='display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:100%';
+      d.innerHTML=html; btns.forEach(b=>d.appendChild(b)); box.appendChild(d);};
+    const btn=(t,fn)=>{const b=document.createElement('button');b.className='chip';b.textContent=t;b.onclick=fn;return b;};
+    box.appendChild(head('修饰或按键 MT(按住=修饰键,点按=普通键。可补你缺的 Ctrl)'));
+    row(`按住<select id="th_mod">${mods.map(opt).join('')}</select> 点按<select id="th_key">${keys.map(opt).join('')}</select>`,
+        btn('应用 MT',()=>assign(`MT(${gv('th_mod')},${gv('th_key')})`)));
+    box.appendChild(head('切层或按键 LT(按住=进层,点按=普通键)'));
+    row(`按住进<select id="th_layer">${lyrs.map(opt).join('')}</select> 点按<select id="th_key2">${keys.map(opt).join('')}</select>`,
+        btn('应用 LT',()=>assign(`LT(${gv('th_layer')},${gv('th_key2')})`)));
+    box.appendChild(head('单发 / 粘滞修饰'));
+    row(`修饰<select id="th_mod2">${mods.map(opt).join('')}</select>`,
+        btn('单发 OSM',()=>assign(`OSM(${gv('th_mod2')})`)),
+        btn('粘滞 SM',()=>assign(`SM(${gv('th_mod2')})`)));
   } else if(data==='__MACRO__'){
     box.appendChild(head('宏(用官方工具录制宏序列;此处指派宏号)'));
     for(let n=0;n<16;n++) box.appendChild(chip('宏 '+n, `MACRO(${n})`));

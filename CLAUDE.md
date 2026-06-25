@@ -28,7 +28,7 @@
 
 ## 下一步(待办)
 
-1. 高级动作助记符(tap-mod/layer-modify/BT槽/RGB):位域已知,用官方 UI(127.0.0.1:5000)当真值机逐类对验实机行为(当前可用原始码 0xXXXX 设置)。
+1. 高级动作助记符:**已基本完成**。从 app.js 解出并锚点验证了内置功能(§5.1:SLEEP/USB/电量/BT1-3 等)、层操作(§5.2:MO/TG/TO/LON/LOFF,层号 0-based)、tap-hold(LT/LM/MT/OSM/SM),codec/CLI/编辑器均支持。余:RGB(id=17/18)与时序边沿细节未逐一实测;BT 解绑作用域、睡眠唤醒等行为待实机确认。
 2. 出厂 `archive/keymaps/factory_原始.json`(工具 JSON 16位码格式)→设备二进制转换,支持 CLI 一键回厂。
 3. v0.2:逆向键盘原始 USB HID 报文,CLI/编辑器直连键盘,去掉对 .NET server 的依赖。
 4. (可选)开背盖确认主控;若 nRF52840 + bootloader,评估刷 ZMK。
