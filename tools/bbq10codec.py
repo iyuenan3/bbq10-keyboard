@@ -39,7 +39,8 @@ CONSUMER_LUT = [0xe2, 0xe9, 0xea, 0xb5, 0xb6, 0xb3, 0xb4, 0xb7, 0xcd, 0xcc,
                 0x227, 0x22a, 0x6f, 0x70]
 CONSUMER_NAME = {0xe2: "MUTE", 0xe9: "VOLUP", 0xea: "VOLDN", 0xb5: "NEXT",
                  0xb6: "PREV", 0xb3: "FFWD", 0xb4: "RWND", 0xb7: "STOP",
-                 0xcd: "PLAYPAUSE", 0xcc: "STOPEJECT"}
+                 0xcd: "PLAYPAUSE", 0xcc: "STOPEJECT",
+                 0x6f: "BRIGHTUP", 0x70: "BRIGHTDN"}      # 显示亮度+/-(Consumer 0x6F/0x70)
 # InternalFunc(高位 0xF):code = 0xF000 | ((opt&0xF)<<8) | (id&0xFF)。名表/语义出自官方工具
 # app.js 的 FunctionList(逆向已验,见 docs/reverse-engineering.md §5.1)。id=功能族(0 键盘控制,
 # 1 输出/设备切换),opt=族内变体。0xF001 在蓝牙板上 = 在 USB 与当前蓝牙主机间切换输出。

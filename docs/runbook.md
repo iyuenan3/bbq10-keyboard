@@ -60,6 +60,22 @@ python3 tools/bbq10ctl.py restore my.json         # 还原
 - 复杂键(符号/层/宏/媒体键)全支持,自动管理 fn 索引表(上限 32 种);高级动作用原始码兜底。
 - 出厂原始配置(工具 JSON 格式)= `archive/keymaps/factory_原始.json`,可用官方工具「打开→保存并应用」回厂。`archive/` 含厂商原始资料(工具 .dmg/.exe、官方 PDF、出厂/改版 keymap),gitignore 不入公库。
 
+### macOS 功能键(F 区)映射速查
+
+把 Mac 顶排功能映射到本键盘(编辑器「媒体 / Mac」分类一点即设,或 `setkey`)。结论经实证核验(Consumer = TMK `0x4400|usage`;10 位 usage 如 `0x2A0` 写成 `0x46XX`):
+
+| Mac 功能 | 设成 | 说明 / 坑 |
+|---|---|---|
+| 音量 − / + / 静音 | `VOLDN` `VOLUP` `MUTE` | Consumer 媒体键,稳 |
+| 播放暂停 / 上一首 / 下一首 | `PLAYPAUSE` `PREV` `NEXT` | 稳;长按 PREV/NEXT = 曲内快退/进 |
+| 屏幕亮度 − / + | `BRIGHTDN` `BRIGHTUP` | 仅**内置屏 / macOS 能原生调亮度的外接屏**生效;普通外接显示器需装 MonitorControl/Lunar(走 DDC) |
+| 聚焦搜索 Spotlight | `LGUI+SPACE` | = ⌘Space 系统默认,最稳 |
+| 调度中心 Mission Control | `LCtrl+UP` | = Control+↑ 系统默认 |
+| 启动台 Launchpad | `0x46A0` | Consumer `0x2A0`;无默认组合;macOS Tahoe 26 起 Launchpad 被取代,新系统可能失效 |
+| 语音输入 / 听写 | `LCtrl+LALT+D` | 先在「系统设置 > 键盘 > 听写 > 快捷键 > 自定」按下 Ctrl+Option+D,再映此键(无默认文本组合) |
+| 专注 / 勿扰 | `LCtrl+LALT+F` | 用「快捷指令.app」建勿扰快捷指令、在其信息面板加全局热键 Ctrl+Option+F,再映此键 |
+| 键盘背光 − / + | 不可经 macOS 实现 | Apple 走 vendor usage,标准 Consumer `0x79/0x7A` 不被 honor;第三方键盘背光归固件自身管 |
+
 ---
 
 ## Step 4 — 深挖(可选)
